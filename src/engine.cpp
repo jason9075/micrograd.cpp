@@ -20,28 +20,37 @@ Value &Value::operator=(const Value &value) {
   return *this;
 }
 
-Value operator+(const Value &lhs, const Value &rhs) {
+Value operator+(Value &lhs, Value &rhs) {
   auto result = Value(lhs.data + rhs.data, {}, "+");
   result.children.insert(std::make_shared<Value>(lhs));
   result.children.insert(std::make_shared<Value>(rhs));
+
+  result.backward = [&lhs, &rhs, &result]() {
+    lhs.grad += result.grad;
+    rhs.grad += result.grad;
+  };
   return result;
 }
 
-Value operator*(const Value &lhs, const Value &rhs) {
+Value operator*(Value &lhs, Value &rhs) {
   auto result = Value(lhs.data * rhs.data, {}, "*");
   result.children.insert(std::make_shared<Value>(lhs));
   result.children.insert(std::make_shared<Value>(rhs));
+  result.backward = [&lhs, &rhs, &result]() {
+    lhs.grad += rhs.data * result.grad;
+    rhs.grad += lhs.data * result.grad;
+  };
   return result;
 }
 
 std::ostream &operator<<(std::ostream &os, const Value &v) {
   os << "Value(data=" << v.data << ", set=" << v.children.size()
-     << ", op=" << v.op << ")";
+     << ", op=" << v.op << ", grad=" << v.grad << ")";
   return os;
 }
 
 bool operator==(const Value &lhs, const Value &rhs) {
-  return lhs.getData() == rhs.getData();
+  return lhs.data == rhs.data;
 }
 
 Value::~Value() {}
