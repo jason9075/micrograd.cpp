@@ -1,4 +1,6 @@
 #include "engine.hpp"
+#include <memory>
+#include <stack>
 
 Value::Value(int d, const std::unordered_set<std::shared_ptr<Value>> &children,
              const std::string &op)
@@ -9,38 +11,77 @@ Value::Value(float d,
              const std::string &op)
     : data(d), children(children), op(op) {}
 
-Value::Value(const Value &v) : data(v.data), children(v.children), op(v.op) {}
+// Arithmetic operator
+// example: v1 + v2
+std::shared_ptr<Value> operator+(const std::shared_ptr<Value> &lhs,
+                                 const std::shared_ptr<Value> &rhs) {
+  std::unordered_set<std::shared_ptr<Value>> children = {lhs, rhs};
+  auto result = Value::create(lhs->data + rhs->data, children, "+");
 
-Value &Value::operator=(const Value &value) {
-  if (this != &value) {
-    data = value.data;
-    children = value.children;
-    op = value.op;
+  result->_backward = [lhs, rhs, result]() {
+    lhs->grad += result->grad;
+    rhs->grad += result->grad;
+  };
+  return result;
+}
+
+std::shared_ptr<Value> operator*(const std::shared_ptr<Value> &lhs,
+                                 const std::shared_ptr<Value> &rhs) {
+
+  std::unordered_set<std::shared_ptr<Value>> children = {lhs, rhs};
+  auto result = Value::create(lhs->data * rhs->data, children, "*");
+
+  result->_backward = [lhs, rhs, result]() {
+    lhs->grad += rhs->data * result->grad;
+    rhs->grad += lhs->data * result->grad;
+  };
+  return result;
+}
+// example: v1 + 1.2f
+std::shared_ptr<Value> operator+(const std::shared_ptr<Value> &lhs, float rhs) {
+  std::unordered_set<std::shared_ptr<Value>> children = {lhs};
+  auto result = Value::create(lhs->data + rhs, children, "+");
+
+  result->_backward = [lhs, result]() { lhs->grad += result->grad; };
+  return result;
+}
+
+std::shared_ptr<Value> operator*(const std::shared_ptr<Value> &lhs, float rhs) {
+  std::unordered_set<std::shared_ptr<Value>> children = {lhs};
+  auto result = Value::create(lhs->data * rhs, children, "*");
+
+  result->_backward = [lhs, rhs, result]() { lhs->grad += rhs * result->grad; };
+  return result;
+}
+
+void Value::backward() {
+
+  // topological sort
+  std::stack<std::shared_ptr<Value>> topo;
+  std::unordered_set<std::shared_ptr<Value>> visited;
+
+  // depth first search
+  std::function<void(std::shared_ptr<Value>)> buildTopo =
+      [&](std::shared_ptr<Value> v) {
+        if (visited.find(v) != visited.end())
+          return;
+
+        visited.insert(v);
+        for (auto &child : v->children) {
+          buildTopo(child);
+        }
+        topo.push(v);
+      };
+
+  buildTopo(shared_from_this());
+  this->grad = 1;
+
+  while (!topo.empty()) {
+    // cpp pop() does not return the value
+    auto v = topo.top();
+    topo.pop();
+    v->_backward();
   }
-  return *this;
-}
-
-Value operator+(Value &lhs, Value &rhs) {
-  auto result = Value(lhs.data + rhs.data, {}, "+");
-  result.children.insert(std::make_shared<Value>(lhs));
-  result.children.insert(std::make_shared<Value>(rhs));
-
-  result.backward = [&lhs, &rhs, &result]() {
-    lhs.grad += result.grad;
-    rhs.grad += result.grad;
-  };
-  return result;
-}
-
-Value operator*(Value &lhs, Value &rhs) {
-  auto result = Value(lhs.data * rhs.data, {}, "*");
-  result.children.insert(std::make_shared<Value>(lhs));
-  result.children.insert(std::make_shared<Value>(rhs));
-  result.backward = [&lhs, &rhs, &result]() {
-    lhs.grad += rhs.data * result.grad;
-    rhs.grad += lhs.data * result.grad;
-  };
-  return result;
 }
 
 std::ostream &operator<<(std::ostream &os, const Value &v) {
