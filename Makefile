@@ -14,12 +14,13 @@ build:						## Build the application
 .PHONY: test
 test:						## Run tests
 	echo "Running tests..."
+	./tests.app
 
 
 .PHONY: clean
 clean:						## Clean the docker images
 	@rm -rf build
-	@rm -f playground.app
+	@rm -f playground.app tests.app
 
 .PHONY: help
 help:						## Show this help

@@ -14,3 +14,8 @@ file(GLOB SOURCES src/*.cpp src/tests/*.cpp)
 # Create playground executable
 add_executable(playground.app Main.cpp ${SOURCES})
 
+# Get test source files (e.g., files in src/tests)
+file(GLOB TEST_SOURCES tests/*.cpp)
+
+# Create test executable that also compiles the engine code
+add_executable(tests.app ${TEST_SOURCES} ${SOURCES})
